@@ -1,0 +1,36 @@
+# Operator Data Base:
+Operator Brand: Cellcom (42500)
+	Incoming voice call durations: 844736
+	Outgoing voice call durations: 874157
+	Incoming SMS messages: 4000
+	Outgoing SMS messages: 3990
+	MB downloaded: 408486 | MB uploaded: 416108
+
+Operator Brand: 012 (42504)
+	Incoming voice call durations: 862576
+	Outgoing voice call durations: 855646
+	Incoming SMS messages: 3905
+	Outgoing SMS messages: 3998
+	MB downloaded: 435195 | MB uploaded: 422003
+
+Operator Brand: Airtel (42503)
+	Incoming voice call durations: 853500
+	Outgoing voice call durations: 882069
+	Incoming SMS messages: 3990
+	Outgoing SMS messages: 3986
+	MB downloaded: 429235 | MB uploaded: 432627
+
+Operator Brand: Partner (42501)
+	Incoming voice call durations: 883043
+	Outgoing voice call durations: 851048
+	Incoming SMS messages: 3940
+	Outgoing SMS messages: 4017
+	MB downloaded: 439487 | MB uploaded: 428699
+
+Operator Brand: JIO (42502)
+	Incoming voice call durations: 876475
+	Outgoing voice call durations: 879242
+	Incoming SMS messages: 3907
+	Outgoing SMS messages: 4088
+	MB downloaded: 445752 | MB uploaded: 418127
+
