@@ -1,5 +1,5 @@
-// File: server.c
-// Description: Multi-client threaded server handling login, signup, and exit with basic XOR encryption
+ // File: server.c
+// Description: Multi-client threaded server handling login, signup, and exit with SHA-256 hashing
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -7,19 +7,29 @@
 #include <unistd.h>
 #include <pthread.h>
 #include <arpa/inet.h>
+#include <openssl/sha.h>
 
 #define PORT 8080
 #define MAX_CLIENTS 10
 #define BUFFER_SIZE 1024
 #define FILENAME "users.txt"
+#define SALT "somesalt" // Example salt
 
 pthread_mutex_t file_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-// XOR-based simple encryption/decryption
-void encrypt(char *password) {
-    for (int i = 0; password[i]; i++) {
-        password[i] ^= 'K';
+// SHA-256 hashing
+void sha256_hash(const char *input, char *output) {
+    unsigned char hash[SHA256_DIGEST_LENGTH];
+    SHA256_CTX sha256;
+    SHA256_Init(&sha256);
+    SHA256_Update(&sha256, input, strlen(input));
+    SHA256_Update(&sha256, SALT, strlen(SALT));
+    SHA256_Final(hash, &sha256);
+
+    for (int i = 0; i < SHA256_DIGEST_LENGTH; i++) {
+        sprintf(output + (i * 2), "%02x", hash[i]);
     }
+    output[64] = 0;
 }
 
 // Thread function to handle each client
@@ -67,7 +77,8 @@ void *handle_client(void *arg) {
         password[valread] = '\0';
         password[strcspn(password, "\n")] = 0;
 
-        encrypt(password);
+        char hashed_password[65];
+        sha256_hash(password, hashed_password);
 
         if (strcmp(option, "1") == 0) {
             // Signup
@@ -93,7 +104,7 @@ void *handle_client(void *arg) {
             if (exists) {
                 strcpy(response, "[SERVER]: Username already exists.\n");
             } else {
-                fprintf(fp, "%s %s\n", username, password);
+                fprintf(fp, "%s %s\n", username, hashed_password);
                 strcpy(response, "[SERVER]: Signup successful.\n");
             }
 
@@ -115,7 +126,7 @@ void *handle_client(void *arg) {
 
             while (fgets(line, sizeof(line), fp)) {
                 sscanf(line, "%s %s", user, pass);
-                if (strcmp(user, username) == 0 && strcmp(pass, password) == 0) {
+                if (strcmp(user, username) == 0 && strcmp(pass, hashed_password) == 0) {
                     found = 1;
                     break;
                 }
@@ -196,4 +207,3 @@ int main() {
     close(server_fd);
     return 0;
 }
-
