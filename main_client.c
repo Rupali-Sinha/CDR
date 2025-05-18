@@ -122,7 +122,7 @@ int main() {
         // Otherwise, return to menu
         printf("[CLIENT]: Press Enter to return to menu...\n");
         fgets(buffer, sizeof(buffer), stdin);
-        usleep(200000); // Optional delay
+        usleep(200); // Optional delay
     }
 
     close(sock);
