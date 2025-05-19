@@ -4,20 +4,16 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <ctype.h>
+#include "utils.h"
+#include "post_login.h"
  
 #define PORT 8080
 #define MAX 1024
 #define USER_FILE "users.txt"
  
-// Utility to send message to client
-void send_msg(int sock, const char *msg) {
-    send(sock, msg, strlen(msg), 0);
-}
- 
-// Password must be alphanumeric and contain at least 1 special char
 int is_valid_password(const char *pass) {
     int length = 0, has_upper = 0, has_lower = 0, has_num = 0, has_special = 0;
-    char special_chars[] = "!@#$%^&*()_-+=<>?/";
+    char special_chars[] = "!@#$%^&()_-+=<>?/";
  
     for (int i = 0; pass[i]; i++) {
         length++;
@@ -29,8 +25,6 @@ int is_valid_password(const char *pass) {
  
     return (length >= 8 && has_upper && has_lower && has_num && has_special);
 }
-
- 
  
 int user_exists(const char *username) {
     FILE *fp = fopen(USER_FILE, "r");
@@ -64,18 +58,17 @@ void handle_client(int client_sock) {
     char buffer[MAX];
     while (1) {
         send_msg(client_sock,
-                 "\n--- Main Menu ---\n"
-                 "1. SignUp\n"
-                 "2. Login\n"
-                 "3. Exit\n"
-                 "Choice: ");
+            "\n--- Main Menu ---\n"
+            "1. SignUp\n"
+            "2. Login\n"
+            "3. Exit\n"
+            "Choice: ");
  
         memset(buffer, 0, MAX);
         recv(client_sock, buffer, MAX, 0);
         int choice = atoi(buffer);
  
         if (choice == 1) {
-            // SignUp
             char username[100], password[100];
  
             send_msg(client_sock, "Enter Username: ");
@@ -87,22 +80,21 @@ void handle_client(int client_sock) {
                 continue;
             }
  
-            send_msg(client_sock, "Enter Password (must contain letters, numbers, and special chars): ");
+            send_msg(client_sock, "Enter Password (min 8 chars, upper, lower, number, special): ");
             recv(client_sock, password, sizeof(password), 0);
             password[strcspn(password, "\n")] = 0;
  
             if (!is_valid_password(password)) {
-                send_msg(client_sock, "Invalid password format. Must be alphanumeric + special char.\n");
+                send_msg(client_sock, "Invalid password format.\n");
                 continue;
             }
  
             FILE *fp = fopen(USER_FILE, "a");
             fprintf(fp, "%s %s\n", username, password);
             fclose(fp);
- 
             send_msg(client_sock, "SignUp successful!\n");
-        }
-        else if (choice == 2) {
+ 
+        } else if (choice == 2) {
             char username[100], password[100];
  
             send_msg(client_sock, "Enter Username: ");
@@ -115,15 +107,15 @@ void handle_client(int client_sock) {
  
             if (verify_login(username, password)) {
                 send_msg(client_sock, "Login successful!\n");
+                post_login_menu(client_sock);
             } else {
                 send_msg(client_sock, "Invalid username or password.\n");
             }
-        }
-        else if (choice == 3) {
-            send_msg(client_sock, "Goodbye\n");
+ 
+        } else if (choice == 3) {
+            send_msg(client_sock, "Goodbye!\n");
             break;
-        }
-        else {
+        } else {
             send_msg(client_sock, "Invalid choice.\n");
         }
     }
@@ -147,7 +139,7 @@ int main() {
     bind(server_fd, (struct sockaddr *)&address, sizeof(address));
     listen(server_fd, 3);
  
-    printf("Server is listening on port %d...\n", PORT);
+    printf("Server listening on port %d...\n", PORT);
     client_sock = accept(server_fd, (struct sockaddr *)&address, (socklen_t *)&addrlen);
     printf("Client connected.\n");
  
@@ -155,6 +147,4 @@ int main() {
     close(server_fd);
     return 0;
 }
- 
- 
  
