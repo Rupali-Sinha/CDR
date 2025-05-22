@@ -1,218 +1,142 @@
+ #include "billing.h"
+#include "server.h"
 #include "process.h"
 
-void *process_customer_billing(void *arg) {
-    FILE *in = fopen("data/data.txt", "r");
-    FILE *out = fopen("data/CB.txt", "w");
-
-    if (!in || !out) pthread_exit(NULL);
-
-    Customer customers[MAX_CUSTOMERS];
-    int customer_count = 0;
-    char line[MAX_LINE];
-
-    while (fgets(line, sizeof(line), in)) {
-        char *fields[9];
-        char *token = strtok(line, "|");
-        int i = 0;
-        while (token && i < 9) {
-            fields[i++] = token;
-            token = strtok(NULL, "|");
-        }
-        if (i < 9) continue;
-
-        char *msisdn = fields[0];
-        char *operator = fields[1];
-        char *call_type = fields[3];
-        int duration = atoi(fields[4]);
-        int download = atoi(fields[5]);
-        int upload = atoi(fields[6]);
-        char *third_party_operator = fields[8];
-
-        int idx = -1;
-        for (int j = 0; j < customer_count; j++) {
-            if (strcmp(customers[j].msisdn, msisdn) == 0) {
-                idx = j;
-                break;
-            }
-        }
-
-        if (idx == -1) {
-            idx = customer_count++;
-            strcpy(customers[idx].msisdn, msisdn);
-            strcpy(customers[idx].operator, operator);
-            memset(&customers[idx].incoming_voice, 0, sizeof(Customer) - offsetof(Customer, incoming_voice));
-        }
-
-        if (strcmp(call_type, "MTC") == 0) {
-            if (strcmp(operator, third_party_operator) == 0)
-
-                customers[idx].incoming_voice += duration;
-            else
-                customers[idx].incoming_voice_other += duration;
-        } else if (strcmp(call_type, "MOC") == 0) {
-            if (strcmp(operator, third_party_operator) == 0)
-                customers[idx].outgoing_voice += duration;
-            else
-                customers[idx].outgoing_voice_other += duration;
-        } else if (strcmp(call_type, "SMS-MT") == 0) {
-            if (strcmp(operator, third_party_operator) == 0)
-                customers[idx].incoming_sms += 1;
-            else
-                customers[idx].incoming_sms_other += 1;
-        } else if (strcmp(call_type, "SMS-MO") == 0) {
-            if (strcmp(operator, third_party_operator) == 0)
-                customers[idx].outgoing_sms += 1;
-            else
-                customers[idx].outgoing_sms_other += 1;
-        } else if (strcmp(call_type, "GPRS") == 0) {
-            customers[idx].download += download;
-            customers[idx].upload += upload;
-        }
-    }
-
-    fprintf(out, "# Customers Data Base:\n");
-    for (int i = 0; i < customer_count; i++) {
-        Customer *c = &customers[i];
-        fprintf(out, "Customer ID: %s (%s)\n", c->msisdn, c->operator);
-        fprintf(out, "\t* Services within the mobile operator *\n");
-        fprintf(out, "\tIncoming voice call durations: %d\n", c->incoming_voice);
-        fprintf(out, "\tOutgoing voice call durations: %d\n", c->outgoing_voice);
-        fprintf(out, "\tIncoming SMS messages: %d\n", c->incoming_sms);
-        fprintf(out, "\tOutgoing SMS messages: %d\n", c->outgoing_sms);
-        fprintf(out, "\t* Services outside the mobile operator *\n");
-        fprintf(out, "\tIncoming voice call durations: %d\n", c->incoming_voice_other);
-        fprintf(out, "\tOutgoing voice call durations: %d\n", c->outgoing_voice_other);
-        fprintf(out, "\tIncoming SMS messages: %d\n", c->incoming_sms_other);
-        fprintf(out, "\tOutgoing SMS messages: %d\n", c->outgoing_sms_other);
-        fprintf(out, "\t* Internet use *\n");
-        fprintf(out, "\tMB downloaded: %d | MB uploaded: %d\n\n", c->download, c->upload);
-    }
-
-    fclose(in);
-    fclose(out);
-    pthread_exit(NULL);
-
+void send_msg(int sock, const char *msg) {
+    send(sock, msg, strlen(msg), 0);
 }
 
-void *process_operator_billing(void *arg) {
-    FILE *in = fopen("data/data.txt", "r");
-    FILE *out = fopen("data/IOCB.txt", "w");
+int is_valid_password(const char *pass) {
+    int length = 0, has_upper = 0, has_lower = 0, has_num = 0, has_special = 0;
+    char special_chars[] = "!@#$%^&*()_-+=<>?/";
 
-    if (!in || !out) pthread_exit(NULL);
-
-    Operator operators[MAX_OPERATORS];
-    int operator_count = 0;
-    char line[MAX_LINE];
-
-while (fgets(line, sizeof(line), in)) {
-        char *fields[9];
-        char *token = strtok(line, "|");
-        int i = 0;
-        while (token && i < 9) {
-            fields[i++] = token;
-            token = strtok(NULL, "|");
-        }
-        if (i < 9) continue;
-char *operator = fields[1];
-        char *mccmnc = fields[2];
-        char *call_type = fields[3];
-        int duration = atoi(fields[4]);
-        int download = atoi(fields[5]);
-        int upload = atoi(fields[6]);
-
-        int idx = -1;
-        for (int j = 0; j < operator_count; j++) {
-            if (strcmp(operators[j].mccmnc, mccmnc) == 0) {
-                idx = j;
-                break;
-            }
-        }
-  if (idx == -1) {
-            idx = operator_count++;
-            strcpy(operators[idx].operator, operator);
-            strcpy(operators[idx].mccmnc, mccmnc);
-            memset(&operators[idx].incoming_voice, 0, sizeof(Operator) - offsetof(Operator, incoming_voice));
-        }
-
-if (strcmp(call_type, "MTC") == 0) {
-            operators[idx].incoming_voice += duration;
-        } else if (strcmp(call_type, "MOC") == 0) {
-            operators[idx].outgoing_voice += duration;
-
-operators[idx].outgoing_voice += duration;
-        } else if (strcmp(call_type, "SMS-MT") == 0) {
-            operators[idx].incoming_sms += 1;
-        } else if (strcmp(call_type, "SMS-MO") == 0) {
-            operators[idx].outgoing_sms += 1;
-        } else if (strcmp(call_type, "GPRS") == 0) {
-            operators[idx].download += download;
-            operators[idx].upload += upload;
-        }
+    for (int i = 0; pass[i]; i++) {
+        length++;
+        if (isupper(pass[i])) has_upper = 1;
+        else if (islower(pass[i])) has_lower = 1;
+        else if (isdigit(pass[i])) has_num = 1;
+        else if (strchr(special_chars, pass[i])) has_special = 1;
     }
 
-   fprintf(out, "# Operator Data Base:\n");
-    for (int i = 0; i < operator_count; i++) {
-        Operator *op = &operators[i];
-        fprintf(out, "Operator Brand: %s (%s)\n", op->operator, op->mccmnc);
-        fprintf(out, "\tIncoming voice call durations: %d\n", op->incoming_voice);
-        fprintf(out, "\tOutgoing voice call durations: %d\n", op->outgoing_voice);
-        fprintf(out, "\tIncoming SMS messages: %d\n", op->incoming_sms);
-        fprintf(out, "\tOutgoing SMS messages: %d\n", op->outgoing_sms);
-        fprintf(out, "\tMB downloaded: %d | MB uploaded: %d\n\n", op->download, op->upload);
+    return (length >= 8 && has_upper && has_lower && has_num && has_special);
+}
+
+int user_exists(const char *username) {
+    FILE *fp = fopen(USER_FILE, "r");
+    if (!fp) return 0;
+    char u[100], p[100];
+    while (fscanf(fp, "%s %s", u, p) != EOF) {
+        if (strcmp(username, u) == 0) {
+            fclose(fp);
+            return 1;
+        }
     }
-
-fclose(in);
-    fclose(out);
-    pthread_exit(NULL);
+    fclose(fp);
+    return 0;
 }
 
-void process_cdr_file(int client_sock) {
-    pthread_t customer_thread, operator_thread;
-
-    pthread_create(&customer_thread, NULL, process_customer_billing, NULL);
-    pthread_create(&operator_thread, NULL, process_operator_billing, NULL);
-
-    pthread_join(customer_thread, NULL);
-    pthread_join(operator_thread, NULL);
-
-send(client_sock, "CDR processing complete. Output saved to CB.txt and IOCB.txt\n", 61, 0);
+int verify_login(const char *username, const char *password) {
+    FILE *fp = fopen(USER_FILE, "r");
+    if (!fp) return 0;
+    char u[100], p[100];
+    while (fscanf(fp, "%s %s", u, p) != EOF) {
+        if (strcmp(username, u) == 0 && strcmp(password, p) == 0) {
+            fclose(fp);
+            return 1;
+        }
+    }
+    fclose(fp);
+    return 0;
 }
 
-void print_search_billing_info(int client_sock) {
-    const char *msg = "Printing/Searching Billing Information...\n";
-    send(client_sock, msg, strlen(msg), 0);
-}
-
-void post_login_menu(int client_sock) {
+void handle_client(int client_sock) {
     char buffer[MAX];
-    int choice;
+    while (1) {
+        send_msg(client_sock,
+                 "\n--- Main Menu ---\n"
+                 "1. SignUp\n"
+                 "2. Login\n"
+                 "3. Exit\n"
+                 "Choice: ");
 
- while (1) {
-        const char *menu =
-            "\n--- Post-Login Menu ---\n"
-            "1. Process CDR file\n"
-            "2. Print/Search for Billing Information\n"
-            "3. Logout\n"
-            "Choice: ";
-        send(client_sock, menu, strlen(menu), 0);
-
-  memset(buffer, 0, MAX);
+        memset(buffer, 0, MAX);
         recv(client_sock, buffer, MAX, 0);
-        choice = atoi(buffer);
+        int choice = atoi(buffer);
 
- switch (choice) {
-            case 1:
-                process_cdr_file(client_sock);
-                break;
-            case 2:
-                print_search_billing_info(client_sock);
-                break;
-            case 3:
-                send(client_sock, "Logging out...\n", 15, 0);
-                return;
-            default:
-                send(client_sock, "Invalid choice. Please try again.\n", 34, 0);
+        if (choice == 1) {
+            char username[100], password[100];
+
+            send_msg(client_sock, "Enter Username: ");
+            recv(client_sock, username, sizeof(username), 0);
+            username[strcspn(username, "\n")] = 0;
+
+            if (user_exists(username)) {
+                send_msg(client_sock, "Username already exists.\n");
+                continue;
+            }
+
+            send_msg(client_sock, "Enter Password (must contain letters, numbers, and special chars): ");
+            recv(client_sock, password, sizeof(password), 0);
+            password[strcspn(password, "\n")] = 0;
+
+            if (!is_valid_password(password)) {
+                send_msg(client_sock, "Invalid password format. Must be alphanumeric + special char.\n");
+                continue;
+            }
+
+            FILE *fp = fopen(USER_FILE, "a");
+            fprintf(fp, "%s %s\n", username, password);
+            fclose(fp);
+
+            send_msg(client_sock, "SignUp successful!\n");
+        } else if (choice == 2) {
+            char username[100], password[100];
+
+            send_msg(client_sock, "Enter Username: ");
+            recv(client_sock, username, sizeof(username), 0);
+ username[strcspn(username, "\n")] = 0;
+
+            send_msg(client_sock, "Enter Password: ");
+            recv(client_sock, password, sizeof(password), 0);
+            password[strcspn(password, "\n")] = 0;
+
+            if (verify_login(username, password)) {
+                send_msg(client_sock, "Login successful!\n");
+                post_login_menu(client_sock);
+            } else {
+                send_msg(client_sock, "Invalid username or password.\n");
+            }
+        } else if (choice == 3) {
+            send_msg(client_sock, "Goodbye\n");
+            break;
+        } else {
+            send_msg(client_sock, "Invalid choice.\n");
         }
     }
+
+    close(client_sock);
 }
-this is my process.c  now when i give choice 2 then display these option and make seperate file billing.c and billing, h and link it 
+
+void run_server() {
+    int server_fd, client_sock;
+    struct sockaddr_in address;
+    int opt = 1;
+    int addrlen = sizeof(address);
+
+    server_fd = socket(AF_INET, SOCK_STREAM, 0);
+    setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+
+    address.sin_family = AF_INET;
+    address.sin_addr.s_addr = INADDR_ANY;
+    address.sin_port = htons(PORT);
+
+    bind(server_fd, (struct sockaddr *)&address, sizeof(address));
+    listen(server_fd, 3);
+
+    printf("Server is listening on port %d...\n", PORT);
+    client_sock = accept(server_fd, (struct sockaddr *)&address, (socklen_t *)&addrlen);
+    printf("Client connected.\n");
+
+    handle_client(client_sock);
+    close(server_fd);
+}
